@@ -36,9 +36,9 @@ import (
 //
 // Its method Close marks the SLN as unusable and releases the resource.
 // Close waits for the in-flight CURD operations rather than interrupting them.
-// The CURD operations after Close will report ErrSLNClosed.
+// The CURD operations after Close report ErrSLNClosed.
 // (To test whether an error is ErrSLNClosed, use function errors.Is.)
-// The successive calls to Close will do nothing
+// The successive calls to Close do nothing
 // but block until the SLN is closed or any error occurs during closing.
 type SLN interface {
 	inout.Closer
@@ -49,17 +49,13 @@ type SLN interface {
 	// NumLinkType returns the number of link types and any error encountered.
 	NumLinkType(ctx context.Context) (n int, err error)
 
-	// NumNode returns the number of nodes with the specified type
-	// and any error encountered.
-	// In particular, if the type is invalid (such as zero-value),
-	// it returns the number of all nodes.
-	NumNode(ctx context.Context, t Type) (n int, err error)
+	// NumNode returns the number of nodes that satisfy
+	// the specified conditions and any error encountered.
+	NumNode(ctx context.Context, cond NodeMatchCond) (n int, err error)
 
-	// NumLink returns the number of links with the specified type
-	// and any error encountered.
-	// In particular, if the type is invalid (such as zero-value),
-	// it returns the number of all links.
-	NumLink(ctx context.Context, t Type) (n int, err error)
+	// NumLink returns the number of links that satisfy
+	// the specified conditions and any error encountered.
+	NumLink(ctx context.Context, cond LinkMatchCond) (n int, err error)
 
 	// GetNodeTypes returns all node types in this SLN.
 	GetNodeTypes(ctx context.Context) (types []Type, err error)
@@ -67,90 +63,133 @@ type SLN interface {
 	// GetLinkTypes returns all link types in this SLN.
 	GetLinkTypes(ctx context.Context) (types []Type, err error)
 
-	// GetNode returns the node with the specified ID
+	// GetNodeByID returns the node with the specified ID
 	// and any error encountered.
-	GetNode(ctx context.Context, id ID) (node *Node, err error)
+	//
+	// GetNodeByID reports a *NodeNotExistError if the node does not exist.
+	// (To test whether err is *NodeNotExistError, use function errors.As.)
+	//
+	// propTypes specify the types of properties on the node.
+	// The properties not in propTypes are discarded.
+	//
+	// GetNodeByID reports a *PropTypeError if any property
+	// does not match its specified type.
+	// (To test whether err is *PropTypeError, use function errors.As.)
+	GetNodeByID(ctx context.Context, id ID, propTypes PropTypeMap) (node *Node, err error)
 
-	// GetLink returns the link with the specified ID
+	// GetLinkByID returns the link with the specified ID
 	// and any error encountered.
-	GetLink(ctx context.Context, id ID) (link *Link, err error)
+	//
+	// GetLinkByID reports a *LinkNotExistError if the link does not exist.
+	// (To test whether err is *LinkNotExistError, use function errors.As.)
+	//
+	// propTypes specify the types of properties on the link.
+	// The properties not in propTypes are discarded.
+	//
+	// GetLinkByID reports a *PropTypeError if any property
+	// does not match its specified type.
+	// (To test whether err is *PropTypeError, use function errors.As.)
+	GetLinkByID(ctx context.Context, id ID, propTypes PropTypeMap) (link *Link, err error)
 
-	// GetAllNodes returns all nodes with the specified type
+	// GetAllNodes returns all nodes that satisfy the specified conditions
 	// and any error encountered.
-	// In particular, if the type is invalid (such as zero-value),
-	// it returns all nodes in this SLN.
-	GetAllNodes(ctx context.Context, t Type) (nodes []*Node, err error)
+	//
+	// propTypes specify the types of properties on the node.
+	// The properties not in propTypes are discarded.
+	//
+	// GetAllNodes reports a *PropTypeError if any property
+	// does not match its specified type.
+	// (To test whether err is *PropTypeError, use function errors.As.)
+	GetAllNodes(ctx context.Context, propTypes PropTypeMap, cond NodeMatchCond) (nodes []*Node, err error)
 
-	// GetAllLinks returns all links with the specified type
+	// GetAllLinks returns all links that satisfy the specified conditions
 	// and any error encountered.
-	// In particular, if the type is invalid (such as zero-value),
-	// it returns all links in this SLN.
-	GetAllLinks(ctx context.Context, t Type) (links []*Link, err error)
+	//
+	// propTypes specify the types of properties on the link.
+	// The properties not in propTypes are discarded.
+	//
+	// GetAllLinks reports a *PropTypeError if any property
+	// does not match its specified type.
+	// (To test whether err is *PropTypeError, use function errors.As.)
+	GetAllLinks(ctx context.Context, propTypes PropTypeMap, cond LinkMatchCond) (links []*Link, err error)
 
 	// CreateNode creates a new node with the specified node type t.
 	//
-	// prop is a set of initial properties of the new node.
+	// props are initial properties on the new node.
 	//
-	// It reports a *InvalidTypeError if t is invalid.
+	// CreateNode reports a *InvalidTypeError if t is invalid.
 	// (To test whether err is *InvalidTypeError, use function errors.As.)
-	CreateNode(ctx context.Context, t Type, prop *PropertyMap) (node *Node, err error)
+	CreateNode(ctx context.Context, t Type, props PropMap) (node *Node, err error)
 
 	// CreateLink creates a new link with the specified link type t,
-	// starting from the node with ID from and pointing to the node with ID to.
+	// starting from the node with ID "from" and
+	// pointing to the node with ID "to".
 	//
-	// prop is a set of initial properties of the new link.
+	// props are initial properties on the new link.
 	//
-	// It reports a *InvalidTypeError if t is invalid.
+	// CreateLink reports a *InvalidTypeError if t is invalid.
 	// (To test whether err is *InvalidTypeError, use function errors.As.)
 	//
-	// It reports a *NodeNotExistError if from or to does not exist.
+	// CreateLink reports a *NodeNotExistError if from or to does not exist.
 	// (To test whether err is *NodeNotExistError, use function errors.As.)
-	CreateLink(ctx context.Context, t Type, from, to ID, prop *PropertyMap) (link *Link, err error)
+	CreateLink(ctx context.Context, t Type, from, to ID, props PropMap) (link *Link, err error)
 
-	// RemoveNode removes the node with the specified ID
+	// RemoveNodeByID removes the node with the specified ID
 	// and all associated links.
-	// It returns the properties of that node and any error encountered.
 	//
-	// It returns nil PropertyMap and nil error
-	// if there is no such node or id is invalid.
-	RemoveNode(ctx context.Context, id ID) (prop *PropertyMap, err error)
+	// It returns nil error if there is no such node or id is invalid.
+	RemoveNodeByID(ctx context.Context, id ID) error
 
-	// RemoveLink removes the link with the specified ID.
-	// It returns the properties of that link and any error encountered.
+	// RemoveLinkByID removes the link with the specified ID.
 	//
-	// It returns nil PropertyMap and nil error
-	// if there is no such link or id is invalid.
-	RemoveLink(ctx context.Context, id ID) (prop *PropertyMap, err error)
+	// It returns nil error if there is no such link or id is invalid.
+	RemoveLinkByID(ctx context.Context, id ID) error
 
-	// UpdateNodeProperty updates the properties of
-	// the node with the specified ID.
+	// SetNodeProperties sets the properties on the node
+	// that has the specified ID to the specified properties.
+	//
+	// It removes all properties on the node if props are nil or empty.
+	//
 	// It returns the node updated and any error encountered.
-	UpdateNodeProperty(ctx context.Context, id ID, prop *PropertyMap) (node *Node, err error)
+	SetNodeProperties(ctx context.Context, id ID, props PropMap) (node *Node, err error)
 
-	// UpdateLinkProperty updates the properties of
-	// the link with the specified ID.
+	// SetLinkProperties sets the properties on the link
+	// that has the specified ID to the specified properties.
+	//
+	// It removes all properties on the link if props are nil or empty.
+	//
 	// It returns the link updated and any error encountered.
-	UpdateLinkProperty(ctx context.Context, id ID, prop *PropertyMap) (link *Link, err error)
+	SetLinkProperties(ctx context.Context, id ID, props PropMap) (link *Link, err error)
+
+	// MutateNodeProperties mutates the properties on the node
+	// that has the specified ID.
+	//
+	// It returns the node updated and any error encountered.
+	MutateNodeProperties(ctx context.Context, id ID, pma PropMutateArg) (node *Node, err error)
+
+	// MutateLinkProperties mutates the properties on the link
+	// that has the specified ID.
+	//
+	// It returns the link updated and any error encountered.
+	MutateLinkProperties(ctx context.Context, id ID, pma PropMutateArg) (link *Link, err error)
 }
 
 // NL consists of the common fields of Node and Link.
 type NL struct {
-	SLN  SLN          // The Semantic Link Network to which this node or link belongs.
-	ID   ID           // The ID of this node or link.
-	Type Type         // The type of this node or link.
-	Prop *PropertyMap // The properties of this node or link.
+	SLN   SLN     // The Semantic Link Network to which this node or link belongs.
+	ID    ID      // The ID of this node or link.
+	Type  Type    // The type of this node or link.
+	Props PropMap // The properties on this node or link.
 }
 
 // Node records the information of a semantic node.
 type Node struct {
 	NL
-	Outgoing *IDSet // The IDs of its outgoing links.
-	Incoming *IDSet // The IDs of its incoming links.
 }
 
 // Link records the information of a semantic link.
 type Link struct {
 	NL
-	From ID // The ID of the node where this link starts.
-	To   ID // The ID of the node to which this link points.
+	From *Node // The node from which this link starts.
+	To   *Node // The node to which this link points.
 }

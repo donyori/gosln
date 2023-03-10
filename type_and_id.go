@@ -20,9 +20,10 @@ package gosln
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
+	"github.com/donyori/gogo/container"
+	"github.com/donyori/gogo/container/set"
 	"github.com/donyori/gogo/errors"
 )
 
@@ -30,13 +31,33 @@ import (
 // the serial number (int64) to a valid suffix of ID.
 const encode64Table = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_"
 
-// typePattern is the regular expression pattern for Type.
-var typePattern = regexp.MustCompile("^[A-Z][0-9A-Z_a-z]{0,65534}$")
+// IsValidTypeString reports whether t is a valid type value.
+//
+// A valid type consists of alphanumeric characters and underscores ('_'),
+// begins with an uppercase letter, does not begin with "SLN",
+// and is up to 65535 bytes long.
+func IsValidTypeString(t string) bool {
+	if len(t) < 1 || len(t) > 65535 ||
+		t[0] < 'A' || t[0] > 'Z' ||
+		len(t) >= 3 && t[:3] == "SLN" {
+		return false
+	}
+	for i := 1; i < len(t); i++ {
+		if t[i] < '0' ||
+			t[i] > 'z' ||
+			t[i] > '9' && t[i] < 'A' ||
+			t[i] > 'Z' && t[i] != '_' && t[i] < 'a' {
+			return false
+		}
+	}
+	return true
+}
 
 // Type is the type of the semantic node and link.
 //
 // A valid type consists of alphanumeric characters and underscores ('_'),
-// begins with an uppercase letter, and is up to 65535 bytes long.
+// begins with an uppercase letter, does not begin with "SLN",
+// and is up to 65535 bytes long.
 type Type struct {
 	t string
 }
@@ -44,12 +65,13 @@ type Type struct {
 // NewType returns a Type whose value is t.
 //
 // A valid type consists of alphanumeric characters and underscores ('_'),
-// begins with an uppercase letter, and is up to 65535 bytes long.
-// If t is invalid, NewType will report a *InvalidTypeError.
+// begins with an uppercase letter, does not begin with "SLN",
+// and is up to 65535 bytes long.
+// If t is invalid, NewType reports a *InvalidTypeError.
 // (To test whether err is *InvalidTypeError, use function errors.As.)
 func NewType(t string) (typ Type, err error) {
-	if typePattern.MatchString(t) {
-		typ = Type{t: t}
+	if IsValidTypeString(t) {
+		typ.t = t
 	} else {
 		err = errors.AutoWrap(NewInvalidTypeError(t))
 	}
@@ -67,7 +89,7 @@ func MustNewType(t string) Type {
 
 // String returns the type value.
 //
-// If t is invalid, String will return an empty string.
+// If t is invalid, String returns an empty string.
 func (t Type) String() string {
 	return t.t
 }
@@ -89,12 +111,14 @@ type ID struct {
 	s string // The suffix, unique across the IDs for the same type.
 }
 
-// NewID returns an ID corresponding to the type t, with the serial number i.
+// NewID returns an ID corresponding to the type t,
+// with the specified date and the serial number i.
 //
-// If t is invalid (such as zero-value), NewID will return a zero-value ID.
+// If t is invalid (such as zero-value),
+// NewID returns a zero-value ID.
 //
-// If i is negative, NewID will panic.
-func NewID(t Type, i int64) ID {
+// If i is negative, NewID panics.
+func NewID(t Type, date Date, i int64) ID {
 	if i < 0 {
 		panic(errors.AutoMsg(fmt.Sprintf("the number i (%d) is negative", i)))
 	}
@@ -102,7 +126,9 @@ func NewID(t Type, i int64) ID {
 		return ID{}
 	}
 	var b strings.Builder
-	b.Grow(11)
+	b.Grow(19)
+	b.WriteString(date.String())
+	b.WriteByte('-')
 	for {
 		b.WriteByte(encode64Table[i&077])
 		i >>= 6
@@ -116,15 +142,15 @@ func NewID(t Type, i int64) ID {
 	}
 }
 
-// String formats id to a string, as follows:
+// String formats id into a string in the form of
 //
-//	<Type>#<UniqueSuffix>
+//	<Type> "#" <UniqueSuffix>
 //
 // where <Type> is the type corresponding to id,
 // and <UniqueSuffix> is a suffix that is unique
 // across the IDs for the same type.
 //
-// If id is invalid, String will return an empty string.
+// If id is invalid, String returns an empty string.
 func (id ID) String() string {
 	if id.t == "" {
 		return ""
@@ -146,99 +172,118 @@ func (id ID) Type() Type {
 	return MustNewType(id.t)
 }
 
-// IDSet is a set of IDs.
+// TypeSet is a set of node or link types, all of which are valid Type.
 //
-// A zero-value IDSet is ready to use.
-type IDSet struct {
-	m            map[string]map[string]struct{}
-	containsZero bool
+// If an invalid Type is about to be put into this set,
+// the corresponding method panics with a *InvalidTypeError.
+//
+// To test whether the panic value is a *InvalidTypeError,
+// convert it to an error with type assertion,
+// and then use function errors.As. For example:
+//
+//	// in a deferred function
+//	x := recover()
+//	err, ok := x.(error)
+//	if ok {
+//		var e *gosln.InvalidTypeError
+//		if errors.As(err, &e) {
+//			// x is a *InvalidTypeError
+//		}
+//	}
+type TypeSet interface {
+	set.Set[Type]
 }
 
-// Len returns the number of IDs in the set.
-func (s *IDSet) Len() int {
-	if s == nil {
-		return 0
-	}
+// NewTypeSet creates a new TypeSet.
+//
+// The method Range of the set accesses types in random order.
+// The access order in two calls to Range may be different.
+//
+// capacity asks to allocate enough space to hold
+// the specified number of types.
+// If capacity is negative, it is ignored.
+func NewTypeSet(capacity int) TypeSet {
+	return newValidSet(
+		capacity,
+		func(x Type) bool {
+			return x.IsValid()
+		},
+		func(x Type) error {
+			return NewInvalidTypeError(x.String())
+		},
+	)
+}
+
+// IDSet is a set of IDs, where the IDs are valid.
+//
+// If an invalid ID is about to be put into this set,
+// the corresponding method panics with a *InvalidIDError.
+//
+// To test whether the panic value is a *InvalidIDError,
+// convert it to an error with type assertion,
+// and then use function errors.As. For example:
+//
+//	// in a deferred function
+//	x := recover()
+//	err, ok := x.(error)
+//	if ok {
+//		var e *gosln.InvalidIDError
+//		if errors.As(err, &e) {
+//			// x is a *InvalidIDError
+//		}
+//	}
+type IDSet interface {
+	set.Set[ID]
+
+	// LenType returns the number of IDs
+	// corresponding to the type t in the set.
+	LenType(t Type) int
+
+	// NumType returns the number of types
+	// corresponding to the IDs in the set.
+	NumType() int
+
+	// RangeType accesses the IDs corresponding to the type t in the set.
+	// Each ID is accessed once. The order of the access is random.
+	//
+	// Its parameter handler is a function to deal with an ID in the set
+	// and report whether to continue to access the next ID.
+	RangeType(t Type, handler func(id ID) (cont bool))
+
+	// ContainsType reports whether there is an ID
+	// corresponding to the type t in the set.
+	ContainsType(t Type) bool
+}
+
+// idSetImpl is an implementation of interface IDSet.
+type idSetImpl struct {
+	m map[string]map[string]struct{}
+}
+
+// NewIDSet creates a new IDSet.
+//
+// The method Range of the set accesses IDs in random order.
+// The access order in two calls to Range may be different.
+func NewIDSet() IDSet {
+	return &idSetImpl{m: make(map[string]map[string]struct{})}
+}
+
+func (ids *idSetImpl) Len() int {
 	var n int
-	if s.containsZero {
-		n = 1
-	}
-	for _, sub := range s.m {
+	for _, sub := range ids.m {
 		n += len(sub)
 	}
 	return n
 }
 
-// LenType returns the number of IDs corresponding to the type t in the set.
-func (s *IDSet) LenType(t Type) int {
-	switch {
-	case s == nil:
-	case t.t == "":
-		if s.containsZero {
-			return 1
-		}
-	case len(s.m) == 0:
-	default:
-		return len(s.m[t.t])
-	}
-	return 0
-}
-
-// NumType returns the number of types corresponding to the IDs in the set.
-func (s *IDSet) NumType() int {
-	if s == nil {
-		return 0
-	}
-	var x int
-	if s.containsZero {
-		x = 1
-	}
-	return len(s.m) + x
-}
-
-// ContainsType reports whether there is an ID
-// corresponding to the type t in the set.
-func (s *IDSet) ContainsType(t Type) bool {
-	switch {
-	case s == nil:
-	case t.t == "":
-		return s.containsZero
-	case len(s.m) == 0:
-	default:
-		return len(s.m[t.t]) > 0
-	}
-	return false
-}
-
-// ContainsID reports whether id is in the set.
-func (s *IDSet) ContainsID(id ID) bool {
-	switch {
-	case s == nil:
-	case id.t == "":
-		return s.containsZero
-	case len(s.m) == 0:
-	default:
-		sub := s.m[id.t]
-		if sub == nil {
-			return false
-		}
-		_, ok := sub[id.s]
-		return ok
-	}
-	return false
-}
-
 // Range accesses the IDs in the set.
-// Each ID will be accessed once.
+// Each ID is accessed once.
 // The order of the access is random.
 //
 // Its parameter handler is a function to deal with an ID in the set
 // and report whether to continue to access the next ID.
-func (s *IDSet) Range(handler func(id ID) (cont bool)) {
-	if s == nil || s.containsZero && !handler(ID{}) {
-		return
-	}
-	for t, sub := range s.m {
+func (ids *idSetImpl) Range(handler func(x ID) (cont bool)) {
+	for t, sub := range ids.m {
 		for suffix := range sub {
 			if !handler(ID{t: t, s: suffix}) {
 				return
@@ -247,76 +292,203 @@ func (s *IDSet) Range(handler func(id ID) (cont bool)) {
 	}
 }
 
-// RangeType accesses the IDs corresponding to the type t in the set.
-// Each ID will be accessed once. The order of the access is random.
-//
-// Its parameter handler is a function to deal with an ID in the set
-// and report whether to continue to access the next ID.
-func (s *IDSet) RangeType(t Type, handler func(id ID) (cont bool)) {
-	switch {
-	case s == nil:
-	case t.t == "":
-		if s.containsZero {
-			handler(ID{})
-		}
-	case len(s.m) == 0:
-	default:
-		for suffix := range s.m[t.t] {
-			if !handler(ID{t: t.t, s: suffix}) {
-				return
-			}
-		}
-	}
-}
-
-// Add adds id to the set.
-func (s *IDSet) Add(id ...ID) {
-	if s == nil {
-		panic(errors.AutoMsg("*IDSet is nil"))
-	}
-	if len(id) == 0 {
-		return
-	}
-	for _, x := range id {
-		if x.t == "" {
-			s.containsZero = true
-			continue
-		}
-		if s.m == nil {
-			s.m = make(map[string]map[string]struct{})
-		}
-		sub := s.m[x.t]
-		if sub == nil {
-			sub = make(map[string]struct{})
-			s.m[x.t] = sub
-		}
-		sub[x.s] = struct{}{}
-	}
-}
-
-// Remove removes id from the set.
-// It does nothing for those that are not in the set.
-func (s *IDSet) Remove(id ...ID) {
-	if s == nil || len(id) == 0 {
-		return
-	}
-	for _, x := range id {
-		if x.t == "" {
-			s.containsZero = false
-		} else if len(s.m) > 0 {
-			sub := s.m[x.t]
-			if sub != nil {
-				delete(sub, x.s)
+func (ids *idSetImpl) Filter(filter func(x ID) (keep bool)) {
+	for t, sub := range ids.m {
+		for suffix := range sub {
+			if !filter(ID{t: t, s: suffix}) {
+				delete(sub, suffix)
 				if len(sub) == 0 {
-					delete(s.m, x.t)
+					delete(ids.m, t)
 				}
 			}
 		}
 	}
 }
 
-// Clear removes all IDs in the set.
-func (s *IDSet) Clear() {
-	s.m = nil
-	s.containsZero = false
+func (ids *idSetImpl) ContainsItem(x ID) bool {
+	sub := ids.m[x.t]
+	if sub == nil {
+		return false
+	}
+	_, ok := sub[x.s]
+	return ok
+}
+
+func (ids *idSetImpl) ContainsSet(s set.Set[ID]) bool {
+	if s == nil {
+		return true
+	}
+	n := s.Len()
+	if n == 0 {
+		return true
+	} else if n > len(ids.m) {
+		return false
+	}
+	var ok bool
+	s.Range(func(x ID) (cont bool) {
+		sub := ids.m[x.t]
+		if sub != nil {
+			_, ok = sub[x.s]
+		} else {
+			ok = false
+		}
+		return ok
+	})
+	return ok
+}
+
+func (ids *idSetImpl) ContainsAny(c container.Container[ID]) bool {
+	if c == nil || c.Len() == 0 {
+		return false
+	}
+	var ok bool
+	c.Range(func(x ID) (cont bool) {
+		sub := ids.m[x.t]
+		if sub != nil {
+			_, ok = sub[x.s]
+		} else {
+			ok = false
+		}
+		return !ok
+	})
+	return ok
+}
+
+func (ids *idSetImpl) Add(id ...ID) {
+	for _, x := range id {
+		if !x.IsValid() {
+			panic(errors.AutoWrap(NewInvalidIDError(x)))
+		}
+	}
+	for _, x := range id {
+		sub := ids.m[x.t]
+		if sub == nil {
+			sub = make(map[string]struct{})
+			ids.m[x.t] = sub
+		}
+		sub[x.s] = struct{}{}
+	}
+}
+
+func (ids *idSetImpl) Remove(id ...ID) {
+	for _, x := range id {
+		sub := ids.m[x.t]
+		if sub != nil {
+			delete(sub, x.s)
+			if len(sub) == 0 {
+				delete(ids.m, x.t)
+			}
+		}
+	}
+}
+
+func (ids *idSetImpl) Union(s set.Set[ID]) {
+	if s == nil || s.Len() == 0 {
+		return
+	}
+	validateAllIDsInSet(s)
+	s.Range(func(x ID) (cont bool) {
+		sub := ids.m[x.t]
+		if sub == nil {
+			sub = make(map[string]struct{})
+			ids.m[x.t] = sub
+		}
+		sub[x.s] = struct{}{}
+		return true
+	})
+}
+
+func (ids *idSetImpl) Intersect(s set.Set[ID]) {
+	if s == nil || s.Len() == 0 {
+		ids.m = make(map[string]map[string]struct{})
+		return
+	}
+	for t, sub := range ids.m {
+		for suffix := range sub {
+			if !s.ContainsItem(ID{t: t, s: suffix}) {
+				delete(sub, suffix)
+				if len(sub) == 0 {
+					delete(ids.m, t)
+				}
+			}
+		}
+	}
+}
+
+func (ids *idSetImpl) Subtract(s set.Set[ID]) {
+	if s == nil || s.Len() == 0 {
+		return
+	}
+	s.Range(func(x ID) (cont bool) {
+		sub := ids.m[x.t]
+		if sub != nil {
+			delete(sub, x.s)
+			if len(sub) == 0 {
+				delete(ids.m, x.t)
+			}
+		}
+		return true
+	})
+}
+
+func (ids *idSetImpl) DisjunctiveUnion(s set.Set[ID]) {
+	if s == nil || s.Len() == 0 {
+		return
+	}
+	validateAllIDsInSet(s)
+	s.Range(func(x ID) (cont bool) {
+		sub := ids.m[x.t]
+		if sub == nil {
+			sub = make(map[string]struct{})
+			ids.m[x.t] = sub
+		}
+		if _, ok := sub[x.s]; ok {
+			delete(sub, x.s)
+			if len(sub) == 0 {
+				delete(ids.m, x.t)
+			}
+		} else {
+			sub[x.s] = struct{}{}
+		}
+		return true
+	})
+}
+
+func (ids *idSetImpl) Clear() {
+	ids.m = make(map[string]map[string]struct{})
+}
+
+func (ids *idSetImpl) LenType(t Type) int {
+	return len(ids.m[t.t])
+}
+
+func (ids *idSetImpl) NumType() int {
+	return len(ids.m)
+}
+
+func (ids *idSetImpl) RangeType(t Type, handler func(id ID) (cont bool)) {
+	for suffix := range ids.m[t.t] {
+		if !handler(ID{t: t.t, s: suffix}) {
+			return
+		}
+	}
+}
+
+func (ids *idSetImpl) ContainsType(t Type) bool {
+	return len(ids.m[t.t]) > 0
+}
+
+// validateAllIDsInSet checks whether all IDs in s are valid.
+//
+// If any ID is invalid, it panics with a *InvalidIDError.
+func validateAllIDsInSet(s set.Set[ID]) {
+	if s == nil {
+		return
+	}
+	s.Range(func(x ID) (cont bool) {
+		if !x.IsValid() {
+			panic(errors.AutoWrapSkip(NewInvalidIDError(x), 2))
+		}
+		return true
+	})
 }

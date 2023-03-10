@@ -29,32 +29,33 @@ import (
 
 type MyInt int
 
-func TestPropertyTypeOf(t *testing.T) {
+func TestPropTypeOf(t *testing.T) {
 	intPtr := new(int)
 	testCases := []struct {
 		v    any
-		want gosln.PropertyType
+		want gosln.PropType
 	}{
 		{nil, 0},
-		{false, gosln.Bool},
-		{0, gosln.Int},
-		{int8(0), gosln.Int8},
-		{int16(0), gosln.Int16},
-		{int32(0), gosln.Int32},
-		{int64(0), gosln.Int64},
-		{uint(0), gosln.Uint},
-		{uint8(0), gosln.Uint8},
-		{uint16(0), gosln.Uint16},
-		{uint32(0), gosln.Uint32},
-		{uint64(0), gosln.Uint64},
-		{uintptr(0), gosln.Uintptr},
-		{float32(0), gosln.Float32},
-		{float64(0), gosln.Float64},
-		{complex64(0), gosln.Complex64},
-		{complex128(0), gosln.Complex128},
-		{[]byte{}, gosln.Bytes},
-		{"", gosln.String},
-		{time.Time{}, gosln.Time},
+		{false, gosln.PTBool},
+		{0, gosln.PTInt},
+		{int8(0), gosln.PTInt8},
+		{int16(0), gosln.PTInt16},
+		{int32(0), gosln.PTInt32},
+		{int64(0), gosln.PTInt64},
+		{uint(0), gosln.PTUint},
+		{uint8(0), gosln.PTUint8},
+		{uint16(0), gosln.PTUint16},
+		{uint32(0), gosln.PTUint32},
+		{uint64(0), gosln.PTUint64},
+		{uintptr(0), gosln.PTUintptr},
+		{float32(0), gosln.PTFloat32},
+		{float64(0), gosln.PTFloat64},
+		{complex64(0), gosln.PTComplex64},
+		{complex128(0), gosln.PTComplex128},
+		{[]byte{}, gosln.PTBytes},
+		{"", gosln.PTString},
+		{time.Time{}, gosln.PTTime},
+		{gosln.Date{}, gosln.PTDate},
 		{MyInt(0), 0},
 		{intPtr, 0},
 		{gosln.Type{}, 0},
@@ -63,7 +64,7 @@ func TestPropertyTypeOf(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("vType=%T", tc.v), func(t *testing.T) {
-			got := gosln.PropertyTypeOf(tc.v)
+			got := gosln.PropTypeOf(tc.v)
 			if got != tc.want {
 				t.Errorf("got %v; want %v", got, tc.want)
 			}
@@ -71,34 +72,35 @@ func TestPropertyTypeOf(t *testing.T) {
 	}
 }
 
-func TestPropertyType_Type(t *testing.T) {
+func TestPropType_GoType(t *testing.T) {
 	testCases := []struct {
-		t     gosln.PropertyType
+		t     gosln.PropType
 		wantV any
 	}{
 		{-1, nil},
 		{0, nil},
-		{gosln.Bool, false},
-		{gosln.Int, 0},
-		{gosln.Int8, int8(0)},
-		{gosln.Int16, int16(0)},
-		{gosln.Int32, int32(0)},
-		{gosln.Int64, int64(0)},
-		{gosln.Uint, uint(0)},
-		{gosln.Uint8, uint8(0)},
-		{gosln.Uint16, uint16(0)},
-		{gosln.Uint32, uint32(0)},
-		{gosln.Uint64, uint64(0)},
-		{gosln.Uintptr, uintptr(0)},
-		{gosln.Float32, float32(0)},
-		{gosln.Float64, float64(0)},
-		{gosln.Complex64, complex64(0)},
-		{gosln.Complex128, complex128(0)},
-		{gosln.Bytes, []byte{}},
-		{gosln.String, ""},
-		{gosln.Time, time.Time{}},
-		{20, nil},
+		{gosln.PTBool, false},
+		{gosln.PTInt, 0},
+		{gosln.PTInt8, int8(0)},
+		{gosln.PTInt16, int16(0)},
+		{gosln.PTInt32, int32(0)},
+		{gosln.PTInt64, int64(0)},
+		{gosln.PTUint, uint(0)},
+		{gosln.PTUint8, uint8(0)},
+		{gosln.PTUint16, uint16(0)},
+		{gosln.PTUint32, uint32(0)},
+		{gosln.PTUint64, uint64(0)},
+		{gosln.PTUintptr, uintptr(0)},
+		{gosln.PTFloat32, float32(0)},
+		{gosln.PTFloat64, float64(0)},
+		{gosln.PTComplex64, complex64(0)},
+		{gosln.PTComplex128, complex128(0)},
+		{gosln.PTBytes, []byte{}},
+		{gosln.PTString, ""},
+		{gosln.PTTime, time.Time{}},
+		{gosln.PTDate, gosln.Date{}},
 		{21, nil},
+		{22, nil},
 	}
 
 	for _, tc := range testCases {
@@ -107,7 +109,7 @@ func TestPropertyType_Type(t *testing.T) {
 			want = reflect.TypeOf(tc.wantV)
 		}
 		t.Run(fmt.Sprintf("i=%d", tc.t), func(t *testing.T) {
-			got := tc.t.Type()
+			got := tc.t.GoType()
 			if got != want {
 				t.Errorf("got %v; want %v", got, want)
 			}

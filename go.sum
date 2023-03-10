@@ -1,2 +1,4 @@
-github.com/donyori/gogo v0.6.0 h1:41pwqJXrYPdMGfbyESRqkoxPuecJbhyKjRbLBAAX38s=
-github.com/donyori/gogo v0.6.0/go.mod h1:0YcWCZAjGUdc2hBw8u8aKVxefZYfxGVUQiuEbEAxt2I=
+github.com/donyori/gogo v0.7.0 h1:dNU9P+77O4zJImKe1H0eWo+iI/mwY71kndjjsOx5qKQ=
+github.com/donyori/gogo v0.7.0/go.mod h1:0YcWCZAjGUdc2hBw8u8aKVxefZYfxGVUQiuEbEAxt2I=
+github.com/neo4j/neo4j-go-driver/v5 v5.5.0 h1:KxufacDV+IqkzbzvjIAIGkBsa2i0lEB8/MhCgOQxrQo=
+github.com/neo4j/neo4j-go-driver/v5 v5.5.0/go.mod h1:Vff8OwT7QpLm7L2yYr85XNWe9Rbqlbeb9asNXJTHO4k=

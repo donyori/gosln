@@ -28,18 +28,21 @@ import (
 	"github.com/donyori/gosln"
 )
 
-func TestGetProperty(t *testing.T) {
-	const Name = "gUpper"
+func TestPropMapGet(t *testing.T) {
+	name, err := gosln.NewPropName("gUpper")
+	if err != nil {
+		t.Fatal("new property name -", err)
+	}
 	value := 'G'
 
 	const (
 		NoError int8 = iota
-		PropertyNotExistError
-		PropertyTypeError
+		PropNotExistError
+		PropTypeError
 	)
 
-	var pm gosln.PropertyMap
-	err := gosln.SetProperty(&pm, Name, value)
+	pm := gosln.NewPropMap(1)
+	err = gosln.PropMapSet(pm, name, value)
 	if err != nil {
 		t.Fatal("set property -", err)
 	}
@@ -51,108 +54,132 @@ func TestGetProperty(t *testing.T) {
 		wantErrType int8
 	}{
 		{
-			fmt.Sprintf("type=rune&name=%+q", Name),
+			fmt.Sprintf("type=rune&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[rune](&pm, Name)
+				return gosln.PropMapGet[rune](pm, name)
 			},
 			value,
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=int&name=%+q", Name),
+			fmt.Sprintf("type=int&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[int](&pm, Name)
+				return gosln.PropMapGet[int](pm, name)
 			},
 			int(value),
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=int8&name=%+q", Name),
+			fmt.Sprintf("type=int8&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[int8](&pm, Name)
+				return gosln.PropMapGet[int8](pm, name)
 			},
 			int8(value),
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=byte&name=%+q", Name),
+			fmt.Sprintf("type=byte&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[byte](&pm, Name)
+				return gosln.PropMapGet[byte](pm, name)
 			},
 			byte(value),
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=uintptr&name=%+q", Name),
+			fmt.Sprintf("type=uintptr&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[uintptr](&pm, Name)
+				return gosln.PropMapGet[uintptr](pm, name)
 			},
 			uintptr(value),
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=float32&name=%+q", Name),
+			fmt.Sprintf("type=float32&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[float32](&pm, Name)
+				return gosln.PropMapGet[float32](pm, name)
 			},
 			float32(value),
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=string&name=%+q", Name),
+			fmt.Sprintf("type=string&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[string](&pm, Name)
+				return gosln.PropMapGet[string](pm, name)
 			},
 			string(value),
 			NoError,
 		},
 		{
-			fmt.Sprintf("type=rune&name=%+q", ""),
+			fmt.Sprintf("type=rune&pm=<nil>&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[rune](&pm, "")
+				return gosln.PropMapGet[rune](nil, name)
 			},
 			nil,
-			PropertyNotExistError,
+			PropNotExistError,
+		},
+		{
+			fmt.Sprintf("type=rune&pm=<empty>&name=%+q", name),
+			func() (any, error) {
+				return gosln.PropMapGet[rune](gosln.NewPropMap(0), name)
+			},
+			nil,
+			PropNotExistError,
+		},
+		{
+			fmt.Sprintf("type=rune&name=%+q", ""),
+			func() (any, error) {
+				return gosln.PropMapGet[rune](pm, gosln.PropName{})
+			},
+			nil,
+			PropNotExistError,
 		},
 		{
 			fmt.Sprintf("type=bool&name=%+q", ""),
 			func() (any, error) {
-				return gosln.GetProperty[bool](&pm, "")
+				return gosln.PropMapGet[bool](pm, gosln.PropName{})
 			},
 			nil,
-			PropertyNotExistError,
+			PropNotExistError,
 		},
 		{
-			fmt.Sprintf("type=bool&name=%+q", Name),
+			fmt.Sprintf("type=bool&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[bool](&pm, Name)
+				return gosln.PropMapGet[bool](pm, name)
 			},
 			nil,
-			PropertyTypeError,
+			PropTypeError,
 		},
 		{
-			fmt.Sprintf("type=complex128&name=%+q", Name),
+			fmt.Sprintf("type=complex128&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[complex128](&pm, Name)
+				return gosln.PropMapGet[complex128](pm, name)
 			},
 			nil,
-			PropertyTypeError,
+			PropTypeError,
 		},
 		{
-			fmt.Sprintf("type=[]byte&name=%+q", Name),
+			fmt.Sprintf("type=[]byte&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[[]byte](&pm, Name)
+				return gosln.PropMapGet[[]byte](pm, name)
 			},
 			nil,
-			PropertyTypeError,
+			PropTypeError,
 		},
 		{
-			fmt.Sprintf("type=time.Time&name=%+q", Name),
+			fmt.Sprintf("type=time.Time&name=%+q", name),
 			func() (any, error) {
-				return gosln.GetProperty[time.Time](&pm, Name)
+				return gosln.PropMapGet[time.Time](pm, name)
 			},
 			nil,
-			PropertyTypeError,
+			PropTypeError,
+		},
+		{
+			fmt.Sprintf("type=gosln.Date&name=%+q", name),
+			func() (any, error) {
+				return gosln.PropMapGet[gosln.Date](pm, name)
+			},
+			nil,
+			PropTypeError,
 		},
 	}
 
@@ -168,10 +195,10 @@ func TestGetProperty(t *testing.T) {
 					t.Errorf("got value %v (%[1]T); want %v (%[2]T)", v, tc.wantV)
 				}
 				return
-			case PropertyNotExistError:
-				target = new(gosln.PropertyNotExistError)
-			case PropertyTypeError:
-				target = new(gosln.PropertyTypeError)
+			case PropNotExistError:
+				target = (*gosln.PropNotExistError)(nil)
+			case PropTypeError:
+				target = (*gosln.PropTypeError)(nil)
 			default:
 				// This should never happen, but will act as a safeguard for later,
 				// as a default value doesn't make sense here.
