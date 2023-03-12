@@ -37,8 +37,7 @@ import (
 //   - Built-in floating numbers: float32, float64.
 //   - Built-in complex numbers: complex64, complex128.
 //   - Byte strings: []byte, string.
-//   - Time: time.Time.
-//   - Date: gosln.Date.
+//   - Temporal: time.Time, gosln.Date.
 type PropValue interface {
 	bool |
 		constraints.PredeclaredNumeric |
@@ -241,6 +240,10 @@ func (mepm *mutExclPropMap) removeFromOthers(name ...PropName) {
 // If the type of the property is not V and not convertible to V,
 // it reports a *PropTypeError.
 // (To test the type of err, use function errors.As.)
+//
+// In particular, time.Time and gosln.Date are convertible to each other
+// in this function.
+// The conversion uses the function DateOf and the method GoTime of gosln.Date.
 func PropMapGet[V PropValue](pm PropMap, name PropName) (value V, err error) {
 	if pm == nil {
 		err = errors.AutoWrap(NewPropNotExistError(name))
@@ -252,15 +255,18 @@ func PropMapGet[V PropValue](pm PropMap, name PropName) (value V, err error) {
 		return
 	}
 	propV := reflect.ValueOf(prop)
-	// Call ValueOf on the pointer of value so that
-	// the value can be settable for basic types.
+	// Call ValueOf on the pointer of value so that the value can be settable.
 	v := reflect.ValueOf(&value).Elem()
 	propType, vType := propV.Type(), v.Type()
 	switch {
-	case propType.AssignableTo(vType):
+	case propType == vType || propType.AssignableTo(vType):
 		v.Set(propV)
 	case propType.ConvertibleTo(vType):
 		v.Set(propV.Convert(vType))
+	case propType == PTTime.GoType() && vType == PTDate.GoType():
+		v.Set(reflect.ValueOf(DateOf(prop.(time.Time))))
+	case propType == PTDate.GoType() && vType == PTTime.GoType():
+		v.Set(reflect.ValueOf(prop.(Date).GoTime()))
 	default:
 		err = errors.AutoWrap(NewPropTypeError(name, prop, vType))
 	}

@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/donyori/gogo/errors"
+
 	"github.com/donyori/gosln"
 )
 
@@ -113,6 +115,77 @@ func TestPropType_GoType(t *testing.T) {
 			if got != want {
 				t.Errorf("got %v; want %v", got, want)
 			}
+		})
+	}
+}
+
+func TestPropTypeMap_Set(t *testing.T) {
+	const (
+		NoError int8 = iota
+		InvalidPropName
+		InvalidPropType
+	)
+
+	var pts []gosln.PropType
+	pts = append(pts, 0, 1)
+	for i := gosln.PropType(1); i.IsValid(); i++ {
+		pts = append(pts, i+1)
+	}
+
+	testCases := make([]struct {
+		propName         gosln.PropName
+		propType         gosln.PropType
+		wantPanicErrType int8
+	}, 2*len(pts))
+	var idx int
+	for _, pn := range []gosln.PropName{gosln.MustNewPropName("prop"), {}} {
+		for _, pt := range pts {
+			testCases[idx].propName = pn
+			testCases[idx].propType = pt
+			if !pn.IsValid() {
+				testCases[idx].wantPanicErrType = InvalidPropName
+			} else if !pt.IsValid() {
+				testCases[idx].wantPanicErrType = InvalidPropType
+			}
+			idx++
+		}
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("propName=%v&propType=%v", tc.propName, tc.propType), func(t *testing.T) {
+			ptm := gosln.NewPropTypeMap(1)
+			defer func() {
+				e := recover()
+				if tc.wantPanicErrType == NoError {
+					if e != nil {
+						t.Error("panic -", e)
+					}
+					return
+				} else if e == nil {
+					t.Error("want panic but not")
+					return
+				}
+				var target error
+				err, ok := e.(error)
+				switch {
+				case !ok:
+					t.Error("panic -", e)
+					return
+				case tc.wantPanicErrType == InvalidPropName:
+					target = (*gosln.InvalidPropNameError)(nil)
+				case tc.wantPanicErrType == InvalidPropType:
+					target = (*gosln.InvalidPropTypeError)(nil)
+				default:
+					// This should never happen, but will act as a safeguard for later,
+					// as a default value doesn't make sense here.
+					t.Errorf("unknown wantPanicErrType %q", tc.wantPanicErrType)
+					return
+				}
+				if !errors.As(err, &target) {
+					t.Errorf("got error %v (%[1]T); want of type %T", err, target)
+				}
+			}()
+			ptm.Set(tc.propName, tc.propType)
 		})
 	}
 }

@@ -29,10 +29,7 @@ import (
 )
 
 func TestPropMapGet(t *testing.T) {
-	name, err := gosln.NewPropName("gUpper")
-	if err != nil {
-		t.Fatal("new property name -", err)
-	}
+	name := gosln.MustNewPropName("gUpper")
 	value := 'G'
 
 	const (
@@ -42,7 +39,7 @@ func TestPropMapGet(t *testing.T) {
 	)
 
 	pm := gosln.NewPropMap(1)
-	err = gosln.PropMapSet(pm, name, value)
+	err := gosln.PropMapSet(pm, name, value)
 	if err != nil {
 		t.Fatal("set property -", err)
 	}
@@ -209,4 +206,41 @@ func TestPropMapGet(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPropMapGet_TimeAndDate(t *testing.T) {
+	const Year int = 2023
+	const Month = time.March
+	const Day int = 12
+	ti := time.Date(Year, Month, Day, 0, 0, 0, 0, time.UTC)
+	date := gosln.DateOfYearMonthDay(Year, Month, Day)
+	propName := gosln.MustNewPropName("date")
+
+	t.Run("timeToDate", func(t *testing.T) {
+		pm := gosln.NewPropMap(1)
+		err := gosln.PropMapSet(pm, propName, ti)
+		if err != nil {
+			t.Fatal("set property -", err)
+		}
+		got, err := gosln.PropMapGet[gosln.Date](pm, propName)
+		if err != nil {
+			t.Errorf("got error (%v); want nil", err)
+		} else if got != date {
+			t.Errorf("got %v; want %v", got, date)
+		}
+	})
+
+	t.Run("dateToTime", func(t *testing.T) {
+		pm := gosln.NewPropMap(1)
+		err := gosln.PropMapSet(pm, propName, date)
+		if err != nil {
+			t.Fatal("set property -", err)
+		}
+		got, err := gosln.PropMapGet[time.Time](pm, propName)
+		if err != nil {
+			t.Errorf("got error (%v); want nil", err)
+		} else if !got.Equal(ti) {
+			t.Errorf("got %v; want %v", got, ti)
+		}
+	})
 }
