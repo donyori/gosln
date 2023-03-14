@@ -386,7 +386,7 @@ func (ids *idSetImpl) Union(s set.Set[ID]) {
 	if s == nil || s.Len() == 0 {
 		return
 	}
-	validateAllIDsInSet(s)
+	ids.validateAllIDsInSet(s)
 	s.Range(func(x ID) (cont bool) {
 		sub := ids.m[x.t]
 		if sub == nil {
@@ -435,7 +435,7 @@ func (ids *idSetImpl) DisjunctiveUnion(s set.Set[ID]) {
 	if s == nil || s.Len() == 0 {
 		return
 	}
-	validateAllIDsInSet(s)
+	ids.validateAllIDsInSet(s)
 	s.Range(func(x ID) (cont bool) {
 		sub := ids.m[x.t]
 		if sub == nil {
@@ -481,10 +481,9 @@ func (ids *idSetImpl) ContainsType(t Type) bool {
 // validateAllIDsInSet checks whether all IDs in s are valid.
 //
 // If any ID is invalid, it panics with a *InvalidIDError.
-func validateAllIDsInSet(s set.Set[ID]) {
-	if s == nil {
-		return
-	}
+//
+// The caller should guarantee that s is not nil.
+func (ids *idSetImpl) validateAllIDsInSet(s set.Set[ID]) {
 	s.Range(func(x ID) (cont bool) {
 		if !x.IsValid() {
 			panic(errors.AutoWrapSkip(NewInvalidIDError(x), 2))

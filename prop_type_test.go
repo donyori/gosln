@@ -19,12 +19,11 @@
 package gosln_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
-
-	"github.com/donyori/gogo/errors"
 
 	"github.com/donyori/gosln"
 )
@@ -165,24 +164,24 @@ func TestPropTypeMap_Set(t *testing.T) {
 					t.Error("want panic but not")
 					return
 				}
-				var target error
 				err, ok := e.(error)
 				switch {
 				case !ok:
 					t.Error("panic -", e)
-					return
 				case tc.wantPanicErrType == InvalidPropName:
-					target = (*gosln.InvalidPropNameError)(nil)
+					var target *gosln.InvalidPropNameError
+					if !errors.As(err, &target) {
+						t.Errorf("got error %v (%[1]T); want of type %T", err, target)
+					}
 				case tc.wantPanicErrType == InvalidPropType:
-					target = (*gosln.InvalidPropTypeError)(nil)
+					var target *gosln.InvalidPropTypeError
+					if !errors.As(err, &target) {
+						t.Errorf("got error %v (%[1]T); want of type %T", err, target)
+					}
 				default:
 					// This should never happen, but will act as a safeguard for later,
 					// as a default value doesn't make sense here.
 					t.Errorf("unknown wantPanicErrType %q", tc.wantPanicErrType)
-					return
-				}
-				if !errors.As(err, &target) {
-					t.Errorf("got error %v (%[1]T); want of type %T", err, target)
 				}
 			}()
 			ptm.Set(tc.propName, tc.propType)

@@ -149,9 +149,8 @@ func (vs *validSet[Item]) Remove(x ...Item) {
 func (vs *validSet[Item]) Union(s set.Set[Item]) {
 	if s == nil || s.Len() == 0 {
 		return
-	} else if _, ok := s.(*validSet[Item]); !ok {
-		vs.validateAllItemsInSet(s)
 	}
+	vs.validateAllItemsInSet(s)
 	vs.s.Union(s)
 }
 
@@ -166,9 +165,8 @@ func (vs *validSet[Item]) Subtract(s set.Set[Item]) {
 func (vs *validSet[Item]) DisjunctiveUnion(s set.Set[Item]) {
 	if s == nil || s.Len() == 0 {
 		return
-	} else if _, ok := s.(*validSet[Item]); !ok {
-		vs.validateAllItemsInSet(s)
 	}
+	vs.validateAllItemsInSet(s)
 	vs.s.DisjunctiveUnion(s)
 }
 
@@ -341,9 +339,8 @@ func (vm *validMap[Key, Value]) GetAndSet(key Key, value Value) (
 func (vm *validMap[Key, Value]) SetMap(m mapping.Map[Key, Value]) {
 	if m == nil || m.Len() == 0 {
 		return
-	} else if _, ok := m.(*validMap[Key, Value]); !ok {
-		vm.validateAllKeysAndValuesInMap(m)
 	}
+	vm.validateAllKeysAndValuesInMap(m)
 	vm.m.SetMap(m)
 }
 
@@ -351,9 +348,8 @@ func (vm *validMap[Key, Value]) GetAndSetMap(m mapping.Map[Key, Value]) (
 	previous mapping.Map[Key, Value]) {
 	if m == nil || m.Len() == 0 {
 		return
-	} else if _, ok := m.(*validMap[Key, Value]); !ok {
-		vm.validateAllKeysAndValuesInMap(m)
 	}
+	vm.validateAllKeysAndValuesInMap(m)
 	return vm.m.GetAndSetMap(m)
 }
 

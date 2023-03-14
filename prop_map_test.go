@@ -19,11 +19,10 @@
 package gosln_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/donyori/gogo/errors"
 
 	"github.com/donyori/gosln"
 )
@@ -183,7 +182,6 @@ func TestPropMapGet(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, err := tc.f()
-			var target error
 			switch tc.wantErrType {
 			case NoError:
 				if err != nil {
@@ -191,18 +189,20 @@ func TestPropMapGet(t *testing.T) {
 				} else if v != tc.wantV {
 					t.Errorf("got value %v (%[1]T); want %v (%[2]T)", v, tc.wantV)
 				}
-				return
 			case PropNotExistError:
-				target = (*gosln.PropNotExistError)(nil)
+				var target *gosln.PropNotExistError
+				if !errors.As(err, &target) {
+					t.Errorf("got error %v (%[1]T); want of type %T", err, target)
+				}
 			case PropTypeError:
-				target = (*gosln.PropTypeError)(nil)
+				var target *gosln.PropTypeError
+				if !errors.As(err, &target) {
+					t.Errorf("got error %v (%[1]T); want of type %T", err, target)
+				}
 			default:
 				// This should never happen, but will act as a safeguard for later,
 				// as a default value doesn't make sense here.
-				t.Fatalf("unknown wantErrType %q", tc.wantErrType)
-			}
-			if !errors.As(err, &target) {
-				t.Errorf("got error %v (%[1]T); want of type %T", err, target)
+				t.Errorf("unknown wantErrType %q", tc.wantErrType)
 			}
 		})
 	}
